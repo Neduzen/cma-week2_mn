@@ -1,28 +1,93 @@
----
-title: "analyis"
-output: html_document
----
+install.packages("gitcreds")
+library(gitcreds)
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+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
 
 ```{r cars}
-summary(cars)
+
+## Load the necessary libraries ################################################
+
+library(readr)        # to import tabular data (e.g. csv)
+library(dplyr)        # to manipulate (tabular) data
+library(ggplot2)      # to visualize data
+library(sf)           # to handle spatial vector data
+library(terra)        # To handle raster data
+library(lubridate)    # To handle dates and times
+
+## Import the downloaded csv ##################################################
+
+wildschwein_BE <- read_delim("wildschwein_BE_2056.csv",",") 
+
+wildschwein_BE <- st_as_sf(wildschwein_BE, coords = c("E", "N"), crs = 2056, remove = FALSE)
+
+
+wildschwein_BE <- wildschwein_BE %>% 
+  group_by(TierID) %>% 
+  mutate(timelag = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)))
+
+wildschwein_BE %>%                           # Take wildschwein...
+  group_by(TierID) %>%                    # ...group it by TierID
+  summarise(                              # Summarise the data...
+    mean_timelag = mean(timelag,na.rm = T)# ...by calculating the mean timelag
+  )
+
+wildschwein_BE
+summarise(wildschwein_BE, mean = mean(timelag, na.rm = T))
+```
+```{r cars}
+# How many individuals were tracked?
+wildschwein_BE %>% group_by(TierID) %>% summarise(TierName = first(TierName))
+# Three individual wildboars are tracked. Sabi, Rosa and Ruth
+
+# For how long were the individual tracked? Are there gaps?
+wildschwein_BE <- wildschwein_BE %>% group_by(TierID) %>% 
+  mutate(firsttime= min(DatetimeUTC), lasttime=max(DatetimeUTC)) %>% 
+  mutate(track_timediff = difftime(lasttime, firsttime))
+wildschwein_BE %>% group_by(TierID) %>% 
+  summarise(TierName = first(TierName), firsttime = first(firsttime),lasttime = first(lasttime), track_timediff = first(track_timediff))
+ggplot(data = wildschwein_BE, aes(x = DatetimeUTC, y = TierID))+
+  geom_line(color = "#00AFBB", size = 2)
+# Animals are track from 2014 to 2015, where Sabi has 338.58 days, Rosa 234.67 days and Ruth 261.66 days.
+
+ggplot(wildschwein_BE, aes(x=timelag, color=TierID)) +
+  geom_histogram(fill="white", breaks=c(700, 890, 910, 1100, 3000,8000, 12000, 15000))
+# Most tracks are performed under an interval of roughly 900 seconds and many are around this time, however a big amount of data has as well a tracking interval of around 3000 to 8000 seconds. The three individuals have similar time interval distribution
+wildschwein_BE %>% filter(timelag > 1000) 
+# There are 6254 entries which have more than 1000 seconds timelag and therefore a bigger time difference than the usual 900s
+wildschwein_BE %>% group_by(TierID) %>% 
+  summarise(actual_tracks=n(), expected_amount_of_tracks=as.integer(first(track_timediff)*24*60*60/900)) %>%
+  mutate(percentage_tracked = actual_tracks * 100 / expected_amount_of_tracks)
+# Under expectation of tracking every 15 minutes, the different animals have between 56% and 70% percent coverage of their tracks.
+
+# Were all individuals tracked concurrently or sequentially?
+# The animals were tracked over the same time periode, some over a longer and some over a shorter time.
+# Which would indicate that they are tracked concurrently, but the data points are ordered sequentially-
+
+# What is the temporal sampling interval between the locations?
+wildschwein_BE %>%  mutate(time_lag_minute=as.integer(timelag/60)) %>% 
+  group_by(TierID) %>% 
+  summarise(mean_timelag = mean(timelag,na.rm = T), median_timelag_minute=median(time_lag_minute,na.rm = T))
+# Usually every 15minutes = 900 second a new record is tracked. 
+#But the mean timedifference of the animals is 1286, 1411, 1599 s) which is higher, therefore implicating that there are time gaps
+ggplot(wildschwein_BE, aes(x=TierID, y=timelag, color=TierID)) +
+  geom_boxplot()
+# Many outliers of sampling for animal '018A'. But the sampling interval was probably set to 15minutes.
+
+
+                    
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r cars}
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r cars}
+ggplot(data = wildschwein_BE) +
+  geom_point(aes(x=N, y=E, colour = TierID))
+
+wildschwein_BE <- wildschwein_BE %>% 
+  group_by(TierID) %>% 
+  mutate(spatial_lag = as.integer(as.numeric((lead(N)-N))^2 + as.numeric(lead(E)-E)^2)^0.5)
+ wildschwein_BE %>% 
+  group_by(TierID) %>% summarise(s = mean(spatial_lag, na.rm=TRUE))
+ # Mean distance 
+```
