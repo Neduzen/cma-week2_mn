@@ -78,16 +78,24 @@ ggplot(wildschwein_BE, aes(x=TierID, y=timelag, color=TierID)) +
 ```
 
 ```{r cars}
+wildschwein_BE <- wildschwein_BE %>% 
+  group_by(TierID) %>% 
+  mutate(steplength = as.integer(as.numeric((lead(N)-N))^2 + as.numeric(lead(E)-E)^2)^0.5)
+wildschwein_BE <- wildschwein_BE %>% mutate(speed = steplength/timelag)
+
+ggplot(wildschwein_BE, aes(x=TierID, y=speed, color=TierID)) +
+  geom_boxplot()
+# Unit is meter in seconds, since time difference has seconds as unit and the swiss coordinate system uses meter as unit.
 ```
 
 ```{r cars}
 ggplot(data = wildschwein_BE) +
   geom_point(aes(x=N, y=E, colour = TierID))
 
-wildschwein_BE <- wildschwein_BE %>% 
-  group_by(TierID) %>% 
-  mutate(spatial_lag = as.integer(as.numeric((lead(N)-N))^2 + as.numeric(lead(E)-E)^2)^0.5)
  wildschwein_BE %>% 
   group_by(TierID) %>% summarise(s = mean(spatial_lag, na.rm=TRUE))
  # Mean distance 
+
+
+
 ```
