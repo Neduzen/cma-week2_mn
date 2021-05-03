@@ -13,6 +13,7 @@ library(ggplot2)      # to visualize data
 library(sf)           # to handle spatial vector data
 library(terra)        # To handle raster data
 library(lubridate)    # To handle dates and times
+library(zoo)
 
 ## Import the downloaded csv ##################################################
 
@@ -20,20 +21,14 @@ wildschwein_BE <- read_delim("wildschwein_BE_2056.csv",",")
 
 wildschwein_BE <- st_as_sf(wildschwein_BE, coords = c("E", "N"), crs = 2056, remove = FALSE)
 
-
+#set timelage
 wildschwein_BE <- wildschwein_BE %>% 
   group_by(TierID) %>% 
   mutate(timelag = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)))
 
-wildschwein_BE %>%                           # Take wildschwein...
-  group_by(TierID) %>%                    # ...group it by TierID
-  summarise(                              # Summarise the data...
-    mean_timelag = mean(timelag,na.rm = T)# ...by calculating the mean timelag
-  )
-
-wildschwein_BE
 summarise(wildschwein_BE, mean = mean(timelag, na.rm = T))
 ```
+Task 1: Getting an overviews
 ```{r cars}
 # How many individuals were tracked?
 wildschwein_BE %>% group_by(TierID) %>% summarise(TierName = first(TierName))
@@ -76,7 +71,7 @@ ggplot(wildschwein_BE, aes(x=TierID, y=timelag, color=TierID)) +
 
                     
 ```
-
+Task 2: Deriving movement parameters I: Speed
 ```{r cars}
 wildschwein_BE <- wildschwein_BE %>% 
   group_by(TierID) %>% 
@@ -88,14 +83,79 @@ ggplot(wildschwein_BE, aes(x=TierID, y=speed, color=TierID)) +
 # Unit is meter in seconds, since time difference has seconds as unit and the swiss coordinate system uses meter as unit.
 ```
 
+Task 3: Cross-scale movement analysis
 ```{r cars}
-ggplot(data = wildschwein_BE) +
-  geom_point(aes(x=N, y=E, colour = TierID))
+caro <- read_delim("caro60.csv",",") 
+caro <- st_as_sf(caro, coords = c("E", "N"), crs = 2056, remove = FALSE)
 
- wildschwein_BE %>% 
-  group_by(TierID) %>% summarise(s = mean(spatial_lag, na.rm=TRUE))
- # Mean distance 
+caro3 <- caro %>% dplyr::slice(seq(from=1,to=length(caro$TierID), by=3))
+caro6 <- caro %>% dplyr::slice(seq(from=1,to=length(caro$TierID), by=6))
+caro9 <- caro %>% dplyr::slice(seq(from=1,to=length(caro$TierID), by=9))
+
+caro <- caro %>% 
+  mutate(timelag = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)*60),
+         steplength = as.integer(as.numeric((lead(N)-N))^2 + as.numeric(lead(E)-E)^2)^0.5) %>% 
+  mutate(speed = steplength/timelag)
+caro3 <- caro3 %>% 
+  mutate(timelag = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)*60),
+         steplength = as.integer(as.numeric((lead(N)-N))^2 + as.numeric(lead(E)-E)^2)^0.5) %>% 
+  mutate(speed = steplength/timelag)
+caro6 <- caro6 %>% 
+  mutate(timelag = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)*60),
+         steplength = as.integer(as.numeric((lead(N)-N))^2 + as.numeric(lead(E)-E)^2)^0.5) %>% 
+  mutate(speed = steplength/timelag)
+caro9 <- caro9 %>% 
+  mutate(timelag = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)*60),
+         steplength = as.integer(as.numeric((lead(N)-N))^2 + as.numeric(lead(E)-E)^2)^0.5) %>% 
+  mutate(speed = steplength/timelag)
+
+dfcaro <- caro %>% mutate(group="0") %>% rbind(caro3 %>% mutate(group="3")) %>% rbind(caro6 %>% mutate(group="6")) %>% rbind(caro9 %>% mutate(group="9"))
+ggplot(data=dfcaro, aes(x=DatetimeUTC, y=speed, group=group, colour=group)) +
+  geom_line() +
+    labs(title="Speed at various sample sizes",x="Time", y = "Speed [m/s]")
+
+# Plot paths of different temporal sample
+ggplot() +
+  geom_path(data=caro9, aes(x=E, y=N), color="blue", size=0.4, linetype=2) +
+  geom_path(data=caro, aes(x=E, y=N), color="orange", size=0.4, linetype=2) +
+  labs(title="Path of different time sample intervals (1 min in orange and 9 min in blue)", x = "Easting", y = "Northing")
+
+ggplot() +
+  geom_path(data=caro6, aes(x=E, y=N), color="blue", size=0.4, linetype=2) +
+  geom_path(data=caro, aes(x=E, y=N), color="orange", size=0.4, linetype=2) +
+  labs(title="Path of different time sample intervals (1 min in orange and 6 min in blue)", x = "Easting", y = "Northing")
+
+ggplot() +
+  geom_path(data=caro3, aes(x=E, y=N), color="blue", size=0.4, linetype=2) +
+  geom_path(data=caro, aes(x=E, y=N), color="orange", size=0.4, linetype=2) +
+  labs(title="Path of different time sample intervals (1 min in orange and 3 min in blue)", x = "Easting", y = "Northing")
+```
 
 
 
+```{r cars}
+example <- rnorm(10)
+rollmean(example,k = 3,fill = NA,align = "left")
+rollmean(example,k = 4,fill = NA,align = "left")
+
+caro$speed3mov <- rollmean(caro$speed,k = 3,fill = NA,align = "left")
+caro$speed5mov <- rollmean(caro$speed,k = 5,fill = NA,align = "left")
+caro$speed7mov <- rollmean(caro$speed,k = 7,fill = NA,align = "left")
+
+ggplot() +
+  geom_line(data=caro, aes(x=DatetimeUTC, y=speed,color="1")) +
+  geom_line(data=caro, aes(x=DatetimeUTC, y=speed3mov,color="3")) +
+  geom_line(data=caro, aes(x=DatetimeUTC, y=speed5mov,color="5")) +
+  geom_line(data=caro, aes(x=DatetimeUTC, y=speed7mov,color="7")) +
+    labs(title="Speed with various moving windows",x="Time", y = "Speed [m/s]") +
+    scale_color_discrete(name = "Moving window size", labels = c("original", "3", "5", "7"))
+# Original data has more higher and more zero speed values, while the 7 size moving window has more smooth values.
+
+ggplot(caro) +
+  geom_boxplot(aes(x="1", y=speed, color='original'))+
+  geom_boxplot(aes(x="3", y=speed3mov, color='moving window size 3'))+
+  geom_boxplot(aes(x="5", y=speed5mov, color='moving window size 5'))+
+  geom_boxplot(aes(x="7", y=speed7mov, color='moving window size 7'))+
+  labs(title="Speed boxplot with various moving window sizes",x="Size of moving window", y = "Speed [m/s]")+ scale_color_discrete(name = "Moving window size")
+# Mean stays the same, but higher speed outliers get less, the bigger the moving window size is.
 ```
