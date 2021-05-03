@@ -1,9 +1,5 @@
-install.packages("gitcreds")
-library(gitcreds)
-
-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
-
-```{r cars}
+#Setup
+```{r, error=FALSE, message=FALSE, warning=FALSE}
 
 ## Load the necessary libraries ################################################
 
@@ -13,7 +9,7 @@ library(ggplot2)      # to visualize data
 library(sf)           # to handle spatial vector data
 library(terra)        # To handle raster data
 library(lubridate)    # To handle dates and times
-library(zoo)
+library(zoo)          # To handle moving window
 
 ## Import the downloaded csv ##################################################
 
@@ -28,8 +24,8 @@ wildschwein_BE <- wildschwein_BE %>%
 
 summarise(wildschwein_BE, mean = mean(timelag, na.rm = T))
 ```
-Task 1: Getting an overviews
-```{r cars}
+#Task 1: Getting an overview
+```{r, error=FALSE, message=FALSE, warning=FALSE}
 # How many individuals were tracked?
 wildschwein_BE %>% group_by(TierID) %>% summarise(TierName = first(TierName))
 # Three individual wildboars are tracked. Sabi, Rosa and Ruth
@@ -71,20 +67,21 @@ ggplot(wildschwein_BE, aes(x=TierID, y=timelag, color=TierID)) +
 
                     
 ```
-Task 2: Deriving movement parameters I: Speed
-```{r cars}
+#Task 2: Deriving movement parameters I: Speed
+```{r, error=FALSE, message=FALSE, warning=FALSE}
 wildschwein_BE <- wildschwein_BE %>% 
   group_by(TierID) %>% 
   mutate(steplength = as.integer(as.numeric((lead(N)-N))^2 + as.numeric(lead(E)-E)^2)^0.5)
 wildschwein_BE <- wildschwein_BE %>% mutate(speed = steplength/timelag)
 
 ggplot(wildschwein_BE, aes(x=TierID, y=speed, color=TierID)) +
-  geom_boxplot()
+  geom_boxplot() +
+    labs(title="Speed of 3 wildboars",x="Animal ID", y = "Speed [m/s]")
 # Unit is meter in seconds, since time difference has seconds as unit and the swiss coordinate system uses meter as unit.
 ```
 
-Task 3: Cross-scale movement analysis
-```{r cars}
+#Task 3: Cross-scale movement analysis
+```{r, error=FALSE, message=FALSE, warning=FALSE}
 caro <- read_delim("caro60.csv",",") 
 caro <- st_as_sf(caro, coords = c("E", "N"), crs = 2056, remove = FALSE)
 
@@ -116,28 +113,27 @@ ggplot(data=dfcaro, aes(x=DatetimeUTC, y=speed, group=group, colour=group)) +
 
 # Plot paths of different temporal sample
 ggplot() +
-  geom_path(data=caro9, aes(x=E, y=N), color="blue", size=0.4, linetype=2) +
-  geom_path(data=caro, aes(x=E, y=N), color="orange", size=0.4, linetype=2) +
-  labs(title="Path of different time sample intervals (1 min in orange and 9 min in blue)", x = "Easting", y = "Northing")
+  geom_path(data=caro9, aes(x=E, y=N, color="9 minute"), size=0.4, linetype=2) +
+  geom_path(data=caro, aes(x=E, y=N, color="1 minute"), size=0.4, linetype=2) +
+  labs(title="Path of different time sample intervals", x = "Easting", y = "Northing") +
+    scale_color_discrete(name = "Sample interval")
 
 ggplot() +
-  geom_path(data=caro6, aes(x=E, y=N), color="blue", size=0.4, linetype=2) +
-  geom_path(data=caro, aes(x=E, y=N), color="orange", size=0.4, linetype=2) +
-  labs(title="Path of different time sample intervals (1 min in orange and 6 min in blue)", x = "Easting", y = "Northing")
+  geom_path(data=caro6, aes(x=E, y=N, color="6 minute"), color="blue", size=0.4, linetype=2) +
+  geom_path(data=caro, aes(x=E, y=N, color="1 minute"), color="orange", size=0.4, linetype=2) +
+  labs(title="Path of different time sample intervals (1 min in orange and 6 min in blue)", x = "Easting", y = "Northing")+
+    scale_color_discrete(name = "Sample interval")
 
 ggplot() +
-  geom_path(data=caro3, aes(x=E, y=N), color="blue", size=0.4, linetype=2) +
-  geom_path(data=caro, aes(x=E, y=N), color="orange", size=0.4, linetype=2) +
-  labs(title="Path of different time sample intervals (1 min in orange and 3 min in blue)", x = "Easting", y = "Northing")
+  geom_path(data=caro3, aes(x=E, y=N, color="3 minute"), color="blue", size=0.4, linetype=2) +
+  geom_path(data=caro, aes(x=E, y=N, color="1 minute"), color="orange", size=0.4, linetype=2) +
+  labs(title="Path of different time sample intervals (1 min in orange and 3 min in blue)", x = "Easting", y = "Northing")+
+    scale_color_discrete(name = "Sample interval")
 ```
 
-
-
-```{r cars}
-example <- rnorm(10)
-rollmean(example,k = 3,fill = NA,align = "left")
-rollmean(example,k = 4,fill = NA,align = "left")
-
+#Task 4: Deriving movement parameters II: Rolling window functions
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+# Calculate moving window speed
 caro$speed3mov <- rollmean(caro$speed,k = 3,fill = NA,align = "left")
 caro$speed5mov <- rollmean(caro$speed,k = 5,fill = NA,align = "left")
 caro$speed7mov <- rollmean(caro$speed,k = 7,fill = NA,align = "left")
